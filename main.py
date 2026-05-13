@@ -1,17 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import joblib
-import os
 
 app = FastAPI(title="Heart Disease Predictor", version="1.0")
-
-try:
-    model = joblib.load('model/heart_model.joblib')
-    feature_names = joblib.load('model/feature_names.joblib')
-except Exception as e:
-    print(f"Error loading model: {e}")
-    model = None
-    feature_names = None
 
 class PatientData(BaseModel):
     age: float
@@ -36,23 +26,24 @@ def health_check():
 def model_info():
     return {
         "model_type": "Logistic Regression",
-        "features": feature_names,
+        "features": ["age", "sex", "cp", "trestbps", "chol", "fbs", "restecg", "thalach", "exang", "oldpeak", "slope", "ca", "thal"],
         "accuracy": 0.8833
     }
 
 @app.post("/predict")
 def predict(patient: PatientData):
-    if model is None:
-        return {"error": "Model not loaded"}
+    intercept = -6.27744855
+    coef = [-0.01141606, 1.14217783, 0.38345851, 0.02565861, 0.00569410, -0.92588075, 0.21539965, -0.02210521, 0.76186102, 0.32132278, 0.31875469, 1.15129144, 0.29962864]
     
-    input_data = [[
+    input_data = [
         patient.age, patient.sex, patient.cp, patient.trestbps,
         patient.chol, patient.fbs, patient.restecg, patient.thalach,
         patient.exang, patient.oldpeak, patient.slope, patient.ca, patient.thal
-    ]]
+    ]
     
-    prediction = model.predict(input_data)[0]
-    probability = model.predict_proba(input_data)[0][1]
+    z = sum(coef[i] * input_data[i] for i in range(len(coef))) + intercept
+    probability = 1 / (1 + 2.71828 ** (-z))
+    prediction = 1 if probability > 0.5 else 0
     
     return {
         "heart_disease": bool(prediction),
